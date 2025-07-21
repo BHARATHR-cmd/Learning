@@ -1,9 +1,9 @@
 import streamlit as st
 import json
 import time
+import datetime
 
 # --- Constants and Configuration ---
-# You can easily change these values here
 PAGE_TITLE = "Backend Learning Hub"
 PAGE_ICON = "🧠"
 DATA_FILE_PATH = "sessions.json"
@@ -43,27 +43,23 @@ st.markdown("""
 
 # --- Timer and Notification Logic ---
 def show_notification():
-    """Displays a toast notification for taking a break."""
     st.toast(f'🧠 Time for a break! You have been studying for {STUDY_DURATION_MINUTES} minutes.', icon='🎉')
     st.balloons()
     st.session_state.notification_shown = True
 
 def start_timer():
-    """Initializes or resets the study timer."""
     st.session_state.timer_start_time = time.time()
     st.session_state.notification_shown = False
     st.toast(f"Timer started! We'll remind you to take a break in {STUDY_DURATION_MINUTES} minutes.", icon="⏱️")
 
 def check_timer():
-    """Checks if the study duration has passed and sets a flag to show a notification."""
     if 'timer_start_time' in st.session_state and not st.session_state.get('notification_shown', False):
-        if time.time() - st.session_state.timer_start_time >= STUDY_DURATION_SECONDS: # Use the constant
+        if time.time() - st.session_state.timer_start_time >= STUDY_DURATION_SECONDS:
             st.session_state.show_notification_flag = True
 
 # --- Data Loading with Error Handling ---
 @st.cache_data
 def load_data(filepath):
-    """Loads the learning session data from a JSON file."""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -90,7 +86,7 @@ def get_difficulty_badge(difficulty):
 
 # --- Main Application ---
 def main():
-    sessions = load_data(DATA_FILE_PATH) # Use the constant
+    sessions = load_data(DATA_FILE_PATH)
     if not sessions:
         st.stop()
 
@@ -109,7 +105,6 @@ def main():
         st.markdown("---")
         
         selected_topic_title = st.radio("Select a Topic:", topic_titles, key=f"topic_radio_{session_id}")
-        
         selected_topic = next(t for t in topics if t['topic_title'] == selected_topic_title)
         
         st.markdown("---")
@@ -131,6 +126,22 @@ def main():
         
         st.markdown("---")
         st.subheader("Study Timer ⏱️")
+
+        # --- NEW: Timer Indicator Logic ---
+        if 'timer_start_time' in st.session_state:
+            elapsed_time = time.time() - st.session_state.timer_start_time
+            time_remaining = max(0, STUDY_DURATION_SECONDS - elapsed_time)
+            
+            # Calculate minutes and seconds for display
+            mins, secs = divmod(int(time_remaining), 60)
+            timer_text = f"Next break in: **{mins:02d}:{secs:02d}**"
+            
+            # Calculate progress for the progress bar
+            timer_progress = elapsed_time / STUDY_DURATION_SECONDS
+            
+            st.markdown(timer_text)
+            st.progress(min(1.0, timer_progress))
+        
         if st.button(f"Reset {STUDY_DURATION_MINUTES}-Min Break Timer"):
             start_timer()
 

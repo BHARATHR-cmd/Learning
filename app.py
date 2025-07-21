@@ -7,8 +7,8 @@ import streamlit.components.v1 as components
 PAGE_TITLE = "Backend Learning Hub"
 PAGE_ICON = "🧠"
 DATA_FILE_PATH = "sessions.json"
-STUDY_DURATION_MINUTES = 2
-STUDY_DURATION_SECONDS = STUDY_DURATION_MINUTES * 60
+NOTIFICATION_INTERVAL_MINUTES = 2
+NOTIFICATION_INTERVAL_SECONDS = NOTIFICATION_INTERVAL_MINUTES * 60
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -37,10 +37,34 @@ st.markdown("""
     .difficulty-Hard { background-color: #dc3545; }
     .tag-item { background-color: #007bff; }
     .concept-item { background-color: #6c757d; }
+    .notification-button {
+        background-color: #007bff; color: white; border: none; padding: 10px 20px;
+        text-align: center; text-decoration: none; display: inline-block;
+        font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; width: 100%;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- NEW: Mermaid Rendering Function ---
+
+# --- Reusable Components ---
+
+@st.cache_data
+def load_data(filepath):
+    """Loads and validates the learning session data from a JSON file."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            st.error(f"❌ **Error:** Expected a JSON list of sessions in `{filepath}`.", icon="🚨")
+            return None
+        return data
+    except FileNotFoundError:
+        st.error(f"❌ **Error:** The file `{filepath}` was not found. Please make sure it's in the same directory as `app.py`.", icon="🚨")
+        return None
+    except json.JSONDecodeError:
+        st.error(f"❌ **Error:** The file `{filepath}` contains invalid JSON. Please check the file content.", icon="🚨")
+        return None
+
 def render_mermaid(mermaid_code: str):
     """Renders a Mermaid diagram from a code string using a CDN."""
     html_template = f"""
@@ -53,52 +77,52 @@ def render_mermaid(mermaid_code: str):
             mermaid.init(undefined, document.querySelectorAll('.mermaid'));
         </script>
     """
-    # Use Streamlit's component to render the custom HTML
-    components.html(html_template, height=400)
+    components.html(html_template, height=400, scrolling=True)
 
+def browser_notification_component():
+    """Injects HTML and JavaScript to handle browser-based desktop notifications."""
+    interval_ms = NOTIFICATION_INTERVAL_MINUTES * 60 * 1000
+    components.html(f"""
+        <button id="notifyBtn" class="notification-button">Enable Desktop Notifications</button>
+        <p id="status" style="font-size: 0.9em; color: #6c757d; text-align: center;"></p>
+        <script>
+            const notifyBtn = document.getElementById('notifyBtn');
+            const statusEl = document.getElementById('status');
+            let intervalId = null;
 
-# --- Timer and Notification Logic ---
-def show_notification():
-    st.toast(f'🧠 Time for a break! You have been studying for {STUDY_DURATION_MINUTES} minutes.', icon='🎉')
-    st.balloons()
-    st.session_state.notification_shown = True
+            function showNotification() {{
+                const notification = new Notification('Learning Hub Reminder 🚀', {{
+                    body: 'Time for your {NOTIFICATION_INTERVAL_MINUTES}-minute learning break!',
+                    icon: 'https://emojicdn.elk.sh/🧠'
+                }});
+            }}
 
-def start_timer():
-    st.session_state.timer_start_time = time.time()
-    st.session_state.notification_shown = False
-    st.toast(f"Timer started! We'll remind you to take a break in {STUDY_DURATION_MINUTES} minutes.", icon="⏱️")
+            notifyBtn.onclick = function() {{
+                if (!("Notification" in window)) {{
+                    statusEl.textContent = 'This browser does not support desktop notification.';
+                }} else if (Notification.permission === "granted") {{
+                    if (intervalId) clearInterval(intervalId);
+                    intervalId = setInterval(showNotification, {interval_ms});
+                    statusEl.textContent = '✅ Notifications are enabled!';
+                    notifyBtn.style.display = 'none';
+                }} else if (Notification.permission !== "denied") {{
+                    Notification.requestPermission().then(function (permission) {{
+                        if (permission === "granted") {{
+                            if (intervalId) clearInterval(intervalId);
+                            intervalId = setInterval(showNotification, {interval_ms});
+                            statusEl.textContent = '✅ Notifications enabled!';
+                            notifyBtn.style.display = 'none';
+                        }} else {{
+                            statusEl.textContent = 'Notification permission denied.';
+                        }}
+                    }});
+                }} else {{
+                    statusEl.textContent = 'Permission denied. Please enable notifications in your browser settings.';
+                }}
+            }};
+        </script>
+    """, height=100)
 
-def check_timer():
-    if 'timer_start_time' in st.session_state and not st.session_state.get('notification_shown', False):
-        if time.time() - st.session_state.timer_start_time >= STUDY_DURATION_SECONDS:
-            st.session_state.show_notification_flag = True
-
-# --- Data Loading with Error Handling ---
-@st.cache_data
-def load_data(filepath):
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        if not isinstance(data, list):
-            st.error(f"❌ **Error:** Expected a JSON list of sessions in `{filepath}`.", icon="🚨")
-            return None
-        return data
-    except FileNotFoundError:
-        st.error(f"❌ **Error:** The file `{filepath}` was not found.", icon="🚨")
-        return None
-    except json.JSONDecodeError:
-        st.error(f"❌ **Error:** The file `{filepath}` contains invalid JSON.", icon="🚨")
-        return None
-
-# --- UI Helper Functions ---
-def display_tags(tags, concepts):
-    tags_html = "".join([f'<span class="tag tag-item">{tag}</span>' for tag in tags])
-    concepts_html = "".join([f'<span class="tag concept-item">{concept}</span>' for concept in concepts])
-    st.markdown(f"**Tags:** {tags_html}", unsafe_allow_html=True)
-    st.markdown(f"**Related Concepts:** {concepts_html}", unsafe_allow_html=True)
-
-def get_difficulty_badge(difficulty):
-    return f'<span class="tag difficulty-{difficulty}">{difficulty}</span>'
 
 # --- Main Application ---
 def main():
@@ -106,23 +130,27 @@ def main():
     if not sessions:
         st.stop()
 
-    # --- Sidebar for Navigation and Controls ---
+    # --- Sidebar ---
     with st.sidebar:
         st.header("📚 Learning Hub")
         
         session_titles = [s['session_title'] for s in sessions]
         selected_session_title = st.selectbox("Choose a Learning Session:", session_titles)
         
-        selected_session = next(s for s in sessions if s['session_title'] == selected_session_title)
+        selected_session = next((s for s in sessions if s['session_title'] == selected_session_title), sessions[0])
         session_id = selected_session['session_id']
-        topics = selected_session['topics']
+        topics = selected_session.get('topics', [])
         topic_titles = [t['topic_title'] for t in topics]
 
         st.markdown("---")
         
-        selected_topic_title = st.radio("Select a Topic:", topic_titles, key=f"topic_radio_{session_id}")
-        selected_topic = next(t for t in topics if t['topic_title'] == selected_topic_title)
-        
+        if topic_titles:
+            selected_topic_title = st.radio("Select a Topic:", topic_titles, key=f"topic_radio_{session_id}")
+            selected_topic = next((t for t in topics if t['topic_title'] == selected_topic_title), topics[0])
+        else:
+            st.warning("This session has no topics.")
+            selected_topic = None
+
         st.markdown("---")
         
         st.subheader("Your Progress")
@@ -133,68 +161,46 @@ def main():
         progress = completed_count / len(topics) if topics else 0
         st.progress(progress, text=f"{completed_count} / {len(topics)} Topics Completed")
 
-        is_complete = st.checkbox(
-            "Mark as Complete",
-            value=st.session_state[f"completed_{session_id}"][selected_topic['topic_id']],
-            key=f"complete_checkbox_{selected_topic['topic_id']}"
-        )
-        st.session_state[f"completed_{session_id}"][selected_topic['topic_id']] = is_complete
+        if selected_topic:
+            is_complete = st.checkbox(
+                "Mark as Complete",
+                value=st.session_state[f"completed_{session_id}"][selected_topic['topic_id']],
+                key=f"complete_checkbox_{selected_topic['topic_id']}"
+            )
+            st.session_state[f"completed_{session_id}"][selected_topic['topic_id']] = is_complete
         
         st.markdown("---")
-        st.subheader("Study Timer ⏱️")
-        
-        if 'timer_start_time' in st.session_state:
-            elapsed_time = time.time() - st.session_state.timer_start_time
-            time_remaining = max(0, STUDY_DURATION_SECONDS - elapsed_time)
-            mins, secs = divmod(int(time_remaining), 60)
-            timer_text = f"Next break in: **{mins:02d}:{secs:02d}**"
-            timer_progress = elapsed_time / STUDY_DURATION_SECONDS
-            st.markdown(timer_text)
-            st.progress(min(1.0, timer_progress))
-        
-        if st.button(f"Reset {STUDY_DURATION_MINUTES}-Min Break Timer"):
-            start_timer()
+        st.subheader("Desktop Notifications 🔔")
+        browser_notification_component()
 
     # --- Main Content Area ---
-    st.title(f" {selected_topic['topic_title']}")
+    if selected_topic:
+        st.title(f" {selected_topic['topic_title']}")
 
-    difficulty_badge = get_difficulty_badge(selected_topic['difficulty'])
-    st.markdown(f"**Difficulty:** {difficulty_badge}", unsafe_allow_html=True)
-    display_tags(selected_topic['tags'], selected_topic['related_concepts'])
-    
-    tab1, tab2, tab3 = st.tabs(["🧠 Core Concepts", "🎤 Interview Guidance", "📌 Real-World Example"])
+        difficulty = selected_topic.get('difficulty', 'N/A')
+        st.markdown(f"**Difficulty:** <span class='tag difficulty-{difficulty}'>{difficulty}</span>", unsafe_allow_html=True)
+        
+        display_tags(selected_topic.get('tags', []), selected_topic.get('related_concepts', []))
+        
+        tab1, tab2, tab3 = st.tabs(["🧠 Core Concepts", "🎤 Interview Guidance", "📌 Real-World Example"])
 
-    with tab1:
-        # --- UPDATED: Parse markdown to handle Mermaid diagrams explicitly via CDN ---
-        content_parts = selected_topic['content_markdown'].split('```mermaid')
-        for i, part in enumerate(content_parts):
-            if i == 0:
-                st.markdown(part, unsafe_allow_html=True)
-            else:
-                # This part contains a mermaid diagram and potentially more text after it
-                try:
-                    mermaid_code, rest_of_content = part.split('```', 1)
-                    render_mermaid(mermaid_code.strip())
-                    st.markdown(rest_of_content, unsafe_allow_html=True)
-                except ValueError:
-                    # Handle case where the mermaid block might be malformed
+        with tab1:
+            content = selected_topic.get('content_markdown', 'No content available.')
+            content_parts = content.split('```mermaid')
+            for i, part in enumerate(content_parts):
+                if i == 0:
                     st.markdown(part, unsafe_allow_html=True)
-
-    with tab2:
-        st.info(selected_topic['interview_guidance'], icon="💡")
-    with tab3:
-        st.success(selected_topic['example_usage'], icon="✅")
-
-    # --- Timer Check and Notification ---
-    if 'timer_start_time' not in st.session_state:
-        start_timer()
-    if 'show_notification_flag' not in st.session_state:
-        st.session_state.show_notification_flag = False
-    
-    check_timer()
-    if st.session_state.show_notification_flag:
-        show_notification()
-        st.session_state.show_notification_flag = False
+                else:
+                    try:
+                        mermaid_code, rest_of_content = part.split('```', 1)
+                        render_mermaid(mermaid_code.strip())
+                        st.markdown(rest_of_content, unsafe_allow_html=True)
+                    except ValueError:
+                        st.markdown(part, unsafe_allow_html=True)
+        with tab2:
+            st.info(selected_topic.get('interview_guidance', 'No guidance available.'), icon="💡")
+        with tab3:
+            st.success(selected_topic.get('example_usage', 'No example available.'), icon="✅")
 
 if __name__ == "__main__":
     main()

@@ -2,10 +2,18 @@ import streamlit as st
 import json
 import time
 
-# --- Page Configuration (ADHD-friendly: Clean layout, focused content) ---
+# --- Constants and Configuration ---
+# You can easily change these values here
+PAGE_TITLE = "Backend Learning Hub"
+PAGE_ICON = "🧠"
+DATA_FILE_PATH = "sessions.json"
+STUDY_DURATION_MINUTES = 20
+STUDY_DURATION_SECONDS = STUDY_DURATION_MINUTES * 60
+
+# --- Page Configuration ---
 st.set_page_config(
-    page_title="Backend Learning Hub",
-    page_icon="🧠",
+    page_title=PAGE_TITLE,
+    page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -32,10 +40,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # --- Timer and Notification Logic ---
 def show_notification():
     """Displays a toast notification for taking a break."""
-    st.toast('🧠 Time for a break! You have been studying for 20 minutes.', icon='🎉')
+    st.toast(f'🧠 Time for a break! You have been studying for {STUDY_DURATION_MINUTES} minutes.', icon='🎉')
     st.balloons()
     st.session_state.notification_shown = True
 
@@ -43,12 +52,12 @@ def start_timer():
     """Initializes or resets the study timer."""
     st.session_state.timer_start_time = time.time()
     st.session_state.notification_shown = False
-    st.toast("Timer started! We'll remind you to take a break in 20 minutes.", icon="⏱️")
+    st.toast(f"Timer started! We'll remind you to take a break in {STUDY_DURATION_MINUTES} minutes.", icon="⏱️")
 
 def check_timer():
-    """Checks if 20 minutes have passed and sets a flag to show a notification."""
+    """Checks if the study duration has passed and sets a flag to show a notification."""
     if 'timer_start_time' in st.session_state and not st.session_state.get('notification_shown', False):
-        if time.time() - st.session_state.timer_start_time >= 1200:  # 20 minutes
+        if time.time() - st.session_state.timer_start_time >= STUDY_DURATION_SECONDS: # Use the constant
             st.session_state.show_notification_flag = True
 
 # --- Data Loading with Error Handling ---
@@ -58,7 +67,6 @@ def load_data(filepath):
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        # Ensure the data is a list
         if not isinstance(data, list):
             st.error(f"❌ **Error:** Expected a JSON list of sessions in `{filepath}`.", icon="🚨")
             return None
@@ -82,7 +90,7 @@ def get_difficulty_badge(difficulty):
 
 # --- Main Application ---
 def main():
-    sessions = load_data("learning.json")
+    sessions = load_data(DATA_FILE_PATH) # Use the constant
     if not sessions:
         st.stop()
 
@@ -90,11 +98,9 @@ def main():
     with st.sidebar:
         st.header("📚 Learning Hub")
         
-        # NEW: Session Selector
         session_titles = [s['session_title'] for s in sessions]
         selected_session_title = st.selectbox("Choose a Learning Session:", session_titles)
         
-        # Get the currently selected session object
         selected_session = next(s for s in sessions if s['session_title'] == selected_session_title)
         session_id = selected_session['session_id']
         topics = selected_session['topics']
@@ -102,14 +108,12 @@ def main():
 
         st.markdown("---")
         
-        # Topic selection radio buttons
         selected_topic_title = st.radio("Select a Topic:", topic_titles, key=f"topic_radio_{session_id}")
         
         selected_topic = next(t for t in topics if t['topic_title'] == selected_topic_title)
         
         st.markdown("---")
         
-        # Progress and Completion (now session-specific)
         st.subheader("Your Progress")
         if f"completed_{session_id}" not in st.session_state:
             st.session_state[f"completed_{session_id}"] = {t['topic_id']: False for t in topics}
@@ -127,7 +131,7 @@ def main():
         
         st.markdown("---")
         st.subheader("Study Timer ⏱️")
-        if st.button("Reset 20-Min Break Timer"):
+        if st.button(f"Reset {STUDY_DURATION_MINUTES}-Min Break Timer"):
             start_timer()
 
     # --- Main Content Area ---

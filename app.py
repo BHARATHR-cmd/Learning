@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import time
-import datetime
+import streamlit.components.v1 as components
 
 # --- Constants and Configuration ---
 PAGE_TITLE = "Backend Learning Hub"
@@ -39,6 +39,22 @@ st.markdown("""
     .concept-item { background-color: #6c757d; }
 </style>
 """, unsafe_allow_html=True)
+
+# --- NEW: Mermaid Rendering Function ---
+def render_mermaid(mermaid_code: str):
+    """Renders a Mermaid diagram from a code string using a CDN."""
+    html_template = f"""
+        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+            <pre class="mermaid">{mermaid_code}</pre>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.0/dist/mermaid.min.js"></script>
+        <script>
+            mermaid.initialize({{startOnLoad:true}});
+            mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+        </script>
+    """
+    # Use Streamlit's component to render the custom HTML
+    components.html(html_template, height=400)
 
 
 # --- Timer and Notification Logic ---
@@ -126,19 +142,13 @@ def main():
         
         st.markdown("---")
         st.subheader("Study Timer ⏱️")
-
-        # --- NEW: Timer Indicator Logic ---
+        
         if 'timer_start_time' in st.session_state:
             elapsed_time = time.time() - st.session_state.timer_start_time
             time_remaining = max(0, STUDY_DURATION_SECONDS - elapsed_time)
-            
-            # Calculate minutes and seconds for display
             mins, secs = divmod(int(time_remaining), 60)
             timer_text = f"Next break in: **{mins:02d}:{secs:02d}**"
-            
-            # Calculate progress for the progress bar
             timer_progress = elapsed_time / STUDY_DURATION_SECONDS
-            
             st.markdown(timer_text)
             st.progress(min(1.0, timer_progress))
         
@@ -155,7 +165,21 @@ def main():
     tab1, tab2, tab3 = st.tabs(["🧠 Core Concepts", "🎤 Interview Guidance", "📌 Real-World Example"])
 
     with tab1:
-        st.markdown(selected_topic['content_markdown'], unsafe_allow_html=True)
+        # --- UPDATED: Parse markdown to handle Mermaid diagrams explicitly via CDN ---
+        content_parts = selected_topic['content_markdown'].split('```mermaid')
+        for i, part in enumerate(content_parts):
+            if i == 0:
+                st.markdown(part, unsafe_allow_html=True)
+            else:
+                # This part contains a mermaid diagram and potentially more text after it
+                try:
+                    mermaid_code, rest_of_content = part.split('```', 1)
+                    render_mermaid(mermaid_code.strip())
+                    st.markdown(rest_of_content, unsafe_allow_html=True)
+                except ValueError:
+                    # Handle case where the mermaid block might be malformed
+                    st.markdown(part, unsafe_allow_html=True)
+
     with tab2:
         st.info(selected_topic['interview_guidance'], icon="💡")
     with tab3:

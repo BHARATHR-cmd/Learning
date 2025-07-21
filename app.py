@@ -46,7 +46,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- Reusable Components ---
+# --- Reusable Components & Helper Functions ---
 
 @st.cache_data
 def load_data(filepath):
@@ -123,6 +123,14 @@ def browser_notification_component():
         </script>
     """, height=100)
 
+# --- RE-ADDED: UI Helper Function ---
+def display_tags(tags, concepts):
+    """Renders tags and related concepts with custom styling."""
+    tags_html = "".join([f'<span class="tag tag-item">{tag}</span>' for tag in tags])
+    concepts_html = "".join([f'<span class="tag concept-item">{concept}</span>' for concept in concepts])
+    st.markdown(f"**Tags:** {tags_html}", unsafe_allow_html=True)
+    st.markdown(f"**Related Concepts:** {concepts_html}", unsafe_allow_html=True)
+
 
 # --- Main Application ---
 def main():
@@ -180,6 +188,7 @@ def main():
         difficulty = selected_topic.get('difficulty', 'N/A')
         st.markdown(f"**Difficulty:** <span class='tag difficulty-{difficulty}'>{difficulty}</span>", unsafe_allow_html=True)
         
+        # This line will now work correctly
         display_tags(selected_topic.get('tags', []), selected_topic.get('related_concepts', []))
         
         tab1, tab2, tab3 = st.tabs(["🧠 Core Concepts", "🎤 Interview Guidance", "📌 Real-World Example"])

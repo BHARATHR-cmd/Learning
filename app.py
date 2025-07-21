@@ -104,7 +104,7 @@ def get_difficulty_badge(difficulty):
 def main():
     # Load data into session state to persist it
     if 'data' not in st.session_state:
-        st.session_state.data = load_data("springboot_session_01.json")
+        st.session_state.data = load_data("learning.json")
     
     data = st.session_state.data
     topics = data['topics']

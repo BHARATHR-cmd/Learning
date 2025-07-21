@@ -7,7 +7,7 @@ import time
 PAGE_TITLE = "Backend Learning Hub"
 PAGE_ICON = "🧠"
 DATA_FILE_PATH = "sessions.json"
-STUDY_DURATION_MINUTES = 20
+STUDY_DURATION_MINUTES = 2
 STUDY_DURATION_SECONDS = STUDY_DURATION_MINUTES * 60
 
 # --- Page Configuration ---
